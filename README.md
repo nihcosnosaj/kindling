@@ -18,3 +18,6 @@ Writing standard `kind` configs can be very verbose. This cli script makes it al
 task build
 sudo task install
 ```
+
+### Usage
+`kindling --workers 3 --name kindling-dev-labs`
