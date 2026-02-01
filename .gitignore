@@ -1,0 +1,13 @@
+# Binaries
+kindling
+bin/
+
+# Dependency directories
+vendor/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Test coverage
+*.out

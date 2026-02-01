@@ -1,0 +1,48 @@
+version: '3'
+
+vars:
+  BINARY_NAME: kindling
+  VERSION: 0.1.0
+
+tasks:
+  build:
+    desc: Build the binary for the current OS with version metadata
+    vars:
+      GIT_COMMIT:
+        sh: git rev-parse --short HEAD || echo "unknown"
+      DATE:
+        sh: date +%Y-%m-%d
+    cmds:
+      - >
+        CGO_ENABLED=0 go build  -v 
+        -ldflags="-X main.Version={{.VERSION}}
+                  -X main.Commit={{.GIT_COMMIT}}
+                  -X main.Date={{.DATE}}"
+        -o {{.BINARY_NAME}} main.go
+    sources:
+      - ./*.go
+    generates:
+      - ./{{.BINARY_NAME}}
+
+  cross-compile:
+    desc: Build for all major platforms
+    cmds:
+      - GOOS=linux GOARCH=amd64 go build -o bin/{{.BINARY_NAME}}-linux-amd64 main.go
+      - GOOS=darwin GOARCH=arm64 go build -o bin/{{.BINARY_NAME}}-darwin-arm64 main.go
+      - GOOS=windows GOARCH=amd64 go build -o bin/{{.BINARY_NAME}}-windows.exe main.go
+
+  clean:
+    desc: Remove binaries and temp files
+    cmds:
+      - rm -rf bin/ {{.BINARY_NAME}}
+
+  install:
+    desc: Build and move to /usr/local/bin (needs sudo perms)
+    deps: [build]
+    cmds:
+      - mv {{.BINARY_NAME}} /usr/local/bin/{{.BINARY_NAME}}
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
