@@ -5,6 +5,10 @@ Kindling is a CLI tool I use for local testing and development with Kubernetes s
 [![CI](https://github.com/YOUR_USER/kindling/actions/workflows/ci.yml/badge.svg)](https://github.com/nihcosnosaj/kindling/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/YOUR_USER/kindling)](https://goreportcard.com/report/github.com/nihcosnosaj/kindling)
 ![License](https://img.shields.io/github/license/nihcosnosaj/kindling)
+![Last commit](https://img.shields.io/github/last-commit/nihcosnosaj/kindling)
+![Forks](https://img.shields.io/github/forks/nihcosnosaj/kindling)
+![Stars](https://img.shields.io/github/stars/nihcosnosaj/kindling)
+
 
 ### Why?
 Writing standard `kind` configs can be very verbose. This cli script makes it all easy with just a single command!
