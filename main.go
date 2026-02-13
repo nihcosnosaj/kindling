@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"text/tabwriter"
 	"time"
 
@@ -41,6 +42,7 @@ func main() {
 func NewRootCmd() *cobra.Command {
 	var workers int
 	var clusterName string
+	var useIngress bool
 
 	cmd := &cobra.Command{
 		Use:   "kindling",
@@ -61,12 +63,21 @@ func NewRootCmd() *cobra.Command {
 				fmt.Printf("Cluster startup failed: %v\n", err)
 				os.Exit(1)
 			}
+
+			// install ingress
+			if useIngress {
+				// buffer for cluster boot-up.
+				time.Sleep(2 * time.Second)
+				installIngress(clusterName)
+			}
+
 			fmt.Println("\nCluster is hot! Use 'kindling status' to check health.")
 		},
 	}
 
 	cmd.Flags().IntVarP(&workers, "workers", "w", 1, "Number of worker nodes")
 	cmd.Flags().StringVarP(&clusterName, "name", "n", "kindling-cluster", "Cluster name")
+	cmd.Flags().BoolVar(&useIngress, "ingress", false, "Enable Ingress controller and port mapping")
 
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newNukeCmd())
@@ -149,7 +160,7 @@ func newNukeCmd() *cobra.Command {
 				return
 			}
 
-			fmt.Printf("🧨 Nuking %d cluster(s)...\n", len(clusters))
+			fmt.Printf("Nuking %d cluster(s)...\n", len(clusters))
 			for _, c := range clusters {
 				fmt.Printf("Deleting: %s\n", c)
 				_ = provider.Delete(c, "")
@@ -173,10 +184,55 @@ func newVersionCmd() *cobra.Command {
 
 func CreateClusterConfig(workerCount int) *v1alpha4.Cluster {
 	conf := &v1alpha4.Cluster{
-		Nodes: []v1alpha4.Node{{Role: v1alpha4.ControlPlaneRole}},
+		Nodes: []v1alpha4.Node{
+			{
+				Role: v1alpha4.ControlPlaneRole,
+				ExtraPortMappings: []v1alpha4.PortMapping{
+					{ContainerPort: 80, HostPort: 80, Protocol: v1alpha4.PortMappingProtocolTCP},
+					{ContainerPort: 443, HostPort: 443, Protocol: v1alpha4.PortMappingProtocolTCP},
+				},
+				// patch node
+				KubeadmConfigPatches: []string{
+					`kind: InitConfiguration
+nodeRegistration:
+  kubeletExtraArgs:
+    node-labels: "ingress-ready=true"`,
+				},
+			},
+		},
 	}
 	for i := 0; i < workerCount; i++ {
 		conf.Nodes = append(conf.Nodes, v1alpha4.Node{Role: v1alpha4.WorkerRole})
 	}
 	return conf
+}
+
+func installIngress(clusterName string) {
+	fmt.Println("Installing NGINX Ingress Controller...")
+
+	// kind-optimized nginx manifest
+	manifest := "https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml"
+
+	// apply via kubectl
+	cmd := exec.Command("kubectl", "apply", "-f", manifest)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		fmt.Printf("Failed to install ingress: %v\n", err)
+		fmt.Printf("kubctl output: %s\n", string(output))
+		return
+	}
+
+	fmt.Println("Waiting for Ingress to be ready...")
+
+	waitCmd := exec.Command("kubectl", "wait", "--namepsace", "ingress-nginx",
+		"--for=condition=ready", "pod",
+		"--selector=app.kubernetes.io/component=controller",
+		"--timeout=90s")
+
+	if err := waitCmd.Run(); err != nil {
+		fmt.Println("Ingress is taking a while to start. Check 'kubectl get pods -n ingress-nginx' later.")
+	} else {
+		fmt.Println("Ingress is online! Reachable at http://localhost:80")
+	}
 }
